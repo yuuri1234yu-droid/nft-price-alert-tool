@@ -68,3 +68,22 @@ def cron_job():
         time.sleep(1)
 
     return {"detail": "Trend checked", "results": results}
+    # ===== Cron endpoint =====
+from fastapi import FastAPI
+from trend import check_trend
+
+app = FastAPI()
+
+@app.get("/cron")
+def run_cron():
+    # ここにあなたが監視したいコレクションを追加するだけ！
+    target_collections = [
+        "basedponkz",
+        "yourfavoritecollection"
+    ]
+
+    for col in target_collections:
+        check_trend(col)
+
+    return {"status": "ok", "checked": target_collections}
+
