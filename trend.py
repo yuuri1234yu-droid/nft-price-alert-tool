@@ -1,102 +1,103 @@
-# trend.py --- Solana NFT トレンド通知（高頻度通知版）
+# trend.py --- Solana NFT トレンド監視（Telegram通知対応）
 import requests
-import time
-from telegram_utils import Bot
 import os
+from telegram import send_message
 
-# ======== Telegram 設定 ========
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "")
-CHAT_IDS = [cid.strip() for cid in TELEGRAM_CHAT_IDS.split(",") if cid.strip()]
+# Magic Eden API
+BASE_URL = "https://api-mainnet.magiceden.dev/v2/collections/{symbol}/stats"
 
-bot = Bot(token=TELEGRAM_TOKEN)
+# Telegram Chat IDs（カンマ区切り）
+CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "").split(",")
 
 
-# ======== MagicEden API ========
-def get_floor_price(symbol):
+# -----------------------------------------------------
+# 通知送信用のラッパー関数
+# -----------------------------------------------------
+def notify(text):
     """
-    MagicEden floor price API
+    全ての Telegram チャットに送信する
     """
-    url = f"https://api-mainnet.magiceden.dev/v2/collections/{symbol}/stats"
-    headers = {"accept": "application/json"}
+    for cid in CHAT_IDS:
+        cid = cid.strip()
+        if cid:
+            try:
+                send_message(cid, text)
+                print(f"[Telegram] Notified → {cid}")
+            except Exception as e:
+                print(f"[Telegram ERROR] {e}")
 
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code != 200:
-            print(f"[ERROR] API ステータスコード異常 {symbol}: {r.status_code}")
-            return None
 
-        data = r.json()
-        return data.get("floorPrice")  # lamports（1e9 = 1 SOL）
+# -----------------------------------------------------
+# MagicEden API から floorPrice / listedCount を取得
+# -----------------------------------------------------
+def fetch_stats(symbol):
+    url = BASE_URL.format(symbol=symbol)
+    r = requests.get(url)
 
-    except Exception as e:
-        print(f"[ERROR] API 取得失敗 ({symbol}): {e}")
+    if r.status_code != 200:
+        print(f"[ERROR] APIエラー {symbol}: {r.status_code}")
         return None
 
-
-# ======== 通知送信 ========
-def send_telegram(message):
-    """複数チャットIDへ送信"""
-    for cid in CHAT_IDS:
-        try:
-            bot.send_message(chat_id=cid, text=message)
-        except Exception as e:
-            print(f"[Telegram ERROR] {e}")
+    return r.json()
 
 
-# ======== 前回価格を保存 ========
-_last_price = {}
+# -----------------------------------------------------
+# トレンド判定ロジック（通知を出す）
+# -----------------------------------------------------
+# 過去の floor を保存（前回値と比較するため）
+last_floor = {}
 
-
-# ======== トレンドチェック ========
 def check_trend(label, symbol):
-    global _last_price
+    """
+    変動率で売り時・買い時を通知する
+    """
+    global last_floor
 
-    floor_lamports = get_floor_price(symbol)
-    if floor_lamports is None:
-        print(f"[{label}] 価格取得失敗")
+    data = fetch_stats(symbol)
+    if data is None:
         return
 
-    # lamports → SOL
-    floor_sol = floor_lamports / 1_000_000_000
-
-    # 初回データ記録
-    if symbol not in _last_price:
-        _last_price[symbol] = floor_sol
-        print(f"[{label}] 初期取得 → {floor_sol:.3f} SOL")
+    # floorPrice を SOL に変換（Magic Eden は 1e9）
+    if "floorPrice" not in data or data["floorPrice"] == 0:
+        print(f"[{label}] floorPrice が取得できなかったためスキップ")
         return
 
-    old = _last_price[symbol]
-    diff = floor_sol - old
+    floor = data["floorPrice"] / 1e9
+    listed = data.get("listedCount", 0)
 
-    # 変動幅（通知頻度操作）========================
-    THRESHOLD = 0.05  # ★ 0.05 SOLの増減で通知（高頻度）
-    # ===========================================
+    print(f"[{label}] 現在 floor={floor} SOL, 出品数={listed}")
 
-    # 判定
-    status = "HOLD（通知なし）"
+    # 初回取得 → 記録だけして終了
+    if symbol not in last_floor:
+        last_floor[symbol] = floor
+        print(f"[{label}] 初回取得のため変動チェックなし")
+        return
 
-    if diff >= THRESHOLD:
-        status = f"📈 **売り時チャンス！**\n{label} が **+{diff:.3f} SOL** 上昇！"
+    before = last_floor[symbol]
+    change = ((floor - before) / before) * 100  # 変動率 %
 
-    elif diff <= -THRESHOLD:
-        status = f"📉 **買い時チャンス！**\n{label} が **{diff:.3f} SOL** 下落！"
+    print(f"[{label}] 変動率={change:.2f}%")
 
-    print(f"[{label}] 変動 {diff:.3f} SOL → {status}")
+    # -----------------------------------------------------
+    # 🔥 通知ロジック（より変動性を強く → 通知が来やすい）
+    # -----------------------------------------------------
 
-    # 通知条件
-    if abs(diff) >= THRESHOLD:
-        msg = f"""
-🔔 Solana NFT 価格変動アラート
-━━━━━━━━━━━━━━━
-📦 コレクション：{label}
-💰 現在価格：{floor_sol:.3f} SOL
-📊 変動：{diff:.3f} SOL
+    # ▼ 強烈な買い時（急落）
+    if change <= -3:
+        notify(f"🔻【買い時チャンス】{label}\nfloor: {floor:.3f} SOL\n変動: {change:.2f}%\n出品数: {listed}")
 
-⏱️ チャンス発生！
-https://magiceden.io/marketplace/{symbol}
-"""
-        send_telegram(msg.strip())
+    # ▼ 買い時（軽い下落）
+    elif change <= -1.0:
+        notify(f"📉【買い時の兆し】{label}\nfloor: {floor:.3f} SOL\n変動: {change:.2f}%\n出品数: {listed}")
 
-    # 更新
-    _last_price[symbol] = floor_sol
+    # ▼ 強烈な売り時（急騰）
+    elif change >= 3:
+        notify(f"🚀【売り時チャンス】{label}\nfloor: {floor:.3f} SOL\n変動: +{change:.2f}%\n出品数: {listed}")
+
+    # ▼ 売り時（軽い上昇）
+    elif change >= 1.0:
+        notify(f"📈【売り時の兆し】{label}\nfloor: {floor:.3f} SOL\n変動: +{change:.2f}%\n出品数: {listed}")
+
+    # 前回値を更新
+    last_floor[symbol] = floor
+
