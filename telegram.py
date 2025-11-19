@@ -1,23 +1,33 @@
-# telegram.py --- Telegram 送信用
+# telegram.py --- 複数ユーザーに通知送信
 
 import requests
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_IDS
 
 
 def send_telegram_message(text: str):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("[Telegram] トークン or chat_id が設定されていません。")
+    if not TELEGRAM_BOT_TOKEN:
+        print("[Telegram] BOT TOKEN が設定されていません。")
+        return
+
+    if not TELEGRAM_CHAT_IDS:
+        print("[Telegram] 通知先 TELEGRAM_CHAT_IDS が設定されていません。")
         return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": text,
-        "parse_mode": "HTML",  # 絵文字や改行をキレイに表示
-    }
+    # 複数の chat_id 全員に送信
+    for cid in TELEGRAM_CHAT_IDS:
+        payload = {
+            "chat_id": cid,
+            "text": text,
+            "parse_mode": "HTML",
+        }
 
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        print(f"[Telegram] 送信エラー: {e}")
+        try:
+            r = requests.post(url, json=payload, timeout=10)
+            if r.status_code != 200:
+                print(f"[Telegram] 送信エラー({cid}): {r.text}")
+        except Exception as e:
+            print(f"[Telegram] 例外エラー({cid}): {e}")
+
+    print(f"[Telegram] {len(TELEGRAM_CHAT_IDS)} 件に通知を送信しました。")
