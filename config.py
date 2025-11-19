@@ -1,4 +1,9 @@
-import os
+# config.py
 
-TELEGRAM_BOT_TOKEN = "8455133544:AAE_aaQuzWkxgfR4xSTiwJBo8Wf6CXykyeg"
-TELEGRAM_CHAT_ID = "5917411414"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
