@@ -1,9 +1,4 @@
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
-
-LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
-LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
-DATABASE_URL = os.getenv("DATABASE_URL", "")
-INVITE_CODE = os.getenv("INVITE_CODE", "システム")
+TELEGRAM_BOT_TOKEN = "8455133544:AAE_aaQuzWkxgfR4xSTiwJBo8Wf6CXykyeg"
+TELEGRAM_CHAT_ID = "5917411414"
