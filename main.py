@@ -4,7 +4,7 @@ from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse
 import uvicorn
 import asyncio
-
+from telegram_utils import Bot
 from trend import check_trend
 from config import TELEGRAM_CHAT_IDS
 
