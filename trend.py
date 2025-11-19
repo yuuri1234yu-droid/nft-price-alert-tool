@@ -1,7 +1,7 @@
 # trend.py --- Solana NFT トレンド監視（Telegram通知対応）
 import requests
 import os
-from telegram import send_message
+from telegram import Bot
 
 # Magic Eden API
 BASE_URL = "https://api-mainnet.magiceden.dev/v2/collections/{symbol}/stats"
