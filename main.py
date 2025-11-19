@@ -7,7 +7,6 @@ app = FastAPI()
 
 # ===== Solana 監視コレクション一覧 =====
 # symbol は Magic Eden の URL スラッグに合わせる
-# 必要に応じて差し替えてOK
 COLLECTIONS = [
     {"label": "Froganas", "symbol": "froganas"},
     {"label": "Oogy", "symbol": "oogy"},
@@ -49,3 +48,4 @@ def cron():
         "status": "ok",
         "checked": checked
     }
+
