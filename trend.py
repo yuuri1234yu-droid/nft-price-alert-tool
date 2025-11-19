@@ -10,8 +10,8 @@ latest_price_cache: dict[str, float] = {}
 def check_trend(
     collection_label: str,
     collection_symbol: str,
-    buy_threshold_percent: float = -10.0,
-    sell_threshold_percent: float = 15.0,
+    buy_threshold_percent: float = -3.0,
+    sell_threshold_percent: float = 5.0,
 ):
     """
     1コレクション分のトレンド判定を行い、BUY/SELL シグナルが出たら Telegram に通知する。
