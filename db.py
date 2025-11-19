@@ -1,19 +1,32 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime
+# db.py
+import os
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from datetime import datetime
-from config import DATABASE_URL
 
-engine = create_engine(DATABASE_URL, echo=False, future=True)
+# Render の環境変数から DB URL を取得する
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+# Render の Postgres を使う場合は SSL が必須
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"sslmode": "require"},
+    future=True,
+    echo=False
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# User モデル
+from sqlalchemy import Column, Integer, String, Boolean
 
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    line_user_id = Column(String(128), unique=True, index=True, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    line_user_id = Column(String, unique=True, index=True)
+    is_active = Column(Boolean, default=True)
 
+# DB初期化（テーブル作成）
 def init_db():
     Base.metadata.create_all(bind=engine)
