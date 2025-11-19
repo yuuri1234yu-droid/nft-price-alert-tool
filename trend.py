@@ -1,87 +1,74 @@
-# trend.py --- トレンド判定 & Telegram通知（requestsのみ）
-
-import requests
-from os import getenv
+# trend.py --- トレンド判定 & Telegram 通知 
 
 from solana import get_floor_price
+from telegram import send_telegram_message
 
-# 環境変数から取得（Render の Environment に設定済み）
-BOT_TOKEN = getenv("TELEGRAM_TOKEN", "")
-CHAT_IDS = getenv("TELEGRAM_CHAT_IDS", "")
-
-# 送信用URL
-def send_telegram_message(text: str):
-    if not BOT_TOKEN or not CHAT_IDS:
-        print("[Telegram] トークン or チャットID が未設定です")
-        return
-
-    for chat_id in CHAT_IDS.split(","):
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {"chat_id": chat_id.strip(), "text": text}
-        try:
-            requests.post(url, json=payload, timeout=10)
-        except Exception as e:
-            print(f"[Telegram] エラー: {e}")
-
-
-# 価格キャッシュ
+# 前回価格キャッシュ
 latest_price_cache: dict[str, float] = {}
 
 
 def check_trend(
     collection_label: str,
     collection_symbol: str,
-    buy_threshold_percent: float = -0.5,  # 1%下落でBUY
-    sell_threshold_percent: float = 0.5,  # 1%上昇でSELL
+    buy_threshold_percent: float = -3.0,   # ← BUY 判定を上げた
+    sell_threshold_percent: float = 3.0,   # ← SELL 判定を下げた
 ):
-    """
-    シンプル変動通知モデル
-    """
+    """1コレクション分のトレンドチェック"""
 
     global latest_price_cache
 
-    # ① 最新のフロア価格を取得
+    # ① 現在価格取得
     current_price = get_floor_price(collection_symbol)
     if current_price is None:
         return "HOLD"
 
-    # ② 前回価格
+    # ② 前回価格取得
     prev_price = latest_price_cache.get(collection_symbol)
 
-    # ③ キャッシュ更新（次回比較用）
+    # ③ キャッシュ更新
     latest_price_cache[collection_symbol] = current_price
 
-    # 初回は比較不可
     if prev_price is None:
-        print(f"[{collection_label}] 初回価格 {current_price:.3f} SOL")
+        print(f"[{collection_label}] 初回取得 → 判定スキップ: {current_price:.3f} SOL")
         return "HOLD"
 
-    # ④ 変動率を計算
+    # ④ 変動率
     change_percent = (current_price - prev_price) / prev_price * 100
 
-    # 判定
+    # ⑤ 判定
     signal = "HOLD"
     if change_percent <= buy_threshold_percent:
         signal = "BUY"
     elif change_percent >= sell_threshold_percent:
         signal = "SELL"
 
-    # ⑤ 通知
+    # ⑥ 通知
     if signal != "HOLD":
+        direction_ja = "買い時（押し目）" if signal == "BUY" else "売り時（利確チャンス）"
+
         msg = (
-            f"【{signal}】 {collection_label}\n"
-            f"前回: {prev_price:.3f} SOL\n"
-            f"現在: {current_price:.3f} SOL\n"
-            f"変動: {change_percent:+.2f}%\n"
+            f"【{signal} シグナル】{direction_ja}\n"
+            f"コレクション：{collection_label}\n"
+            f"シンボル　　：{collection_symbol}\n"
+            f"\n"
+            f"前回フロア　：{prev_price:.3f} SOL\n"
+            f"現在フロア　：{current_price:.3f} SOL\n"
+            f"変動率　　　：{change_percent:+.2f}%\n"
+            f"\n"
+            f"🔗 購入/売却リンク\n"
+            f"https://magiceden.io/marketplace/{collection_symbol}\n"
+            f"\n"
+            f"※判断はご自身でお願いします。"
         )
+
         send_telegram_message(msg)
-        print(f"[{collection_label}] {signal} 通知送信済み")
+        print(f"[{collection_label}] {signal} 通知を送信しました。")
+
     else:
-        print(f"[{collection_label}] {change_percent:+.2f}% → HOLD")
+        print(
+            f"[{collection_label}] 変動 {change_percent:+.2f}% → HOLD（通知なし）"
+        )
 
     return signal
 
-
-    # 前回値を更新
-    last_floor[symbol] = floor
 
