@@ -87,3 +87,8 @@ def run_cron():
 
     return {"status": "ok", "checked": target_collections}
 
+@app.get("/test")
+def test():
+    send_telegram_message("📢 テスト通知：Telegram設定は正常です！")
+    return {"status": "test sent"}
+
