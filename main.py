@@ -8,11 +8,11 @@ app = FastAPI()
 # ===== Solana 監視コレクション一覧 =====
 # symbol は Magic Eden の URL スラッグに合わせる
 COLLECTIONS = [
-    {"label": "Froganas", "symbol": "froganas"},
-    {"label": "Oogy", "symbol": "oogy"},
-    {"label": "Liberty Square", "symbol": "liberty_square"},
-    {"label": "Jelly Rascals", "symbol": "jelly_rascals"},
-    {"label": "BOOGLE", "symbol": "boogle"},
+    ("Froganas", "froganas"),
+    ("Oogy", "oogy"),
+    ("Liberty Square", "libertysquare"),
+    ("Jelly Rascals", "jellyrascals"),
+    ("Boogle", "boogle"),
 ]
 
 
