@@ -19,14 +19,9 @@ COLLECTIONS = [
 ]
 
 # ==========================
-#   監視ループ（5〜15分ごと）
+#   監視ループ
 # ==========================
 async def trend_loop():
-    """
-    全コレクションを定期的にチェックするループ。
-    Render の free インスタンスでも動くように最適化。
-    """
-
     print("=== Solana NFT Trend Tool Started ===")
 
     while True:
@@ -41,17 +36,21 @@ async def trend_loop():
                 print(f"[ERROR] {label} の処理中に問題: {e}")
 
         print("===== チェック完了。次の計測まで待機します =====")
+        await asyncio.sleep(60 * 5)  # 5分ごとにチェック
 
-        await asyncio.sleep(60 * 5)  # ★ 5分に1回動作（本番推奨）
+# ==========================
+#   アプリ起動時に自動開始
+# ==========================
+@app.on_event("startup")
+async def start_loop():
+    loop = asyncio.get_event_loop()
+    loop.create_task(trend_loop())
 
 # ==========================
 #   /cron エンドポイント
 # ==========================
 @app.get("/cron")
 async def run_manual():
-    """
-    GitHub Actions や Render の cron から叩くためのエンドポイント
-    """
     print("[CRON] Manual trigger received.")
     for label, symbol in COLLECTIONS:
         check_trend(label, symbol)
@@ -62,7 +61,4 @@ async def run_manual():
 #   メイン起動
 # ==========================
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(trend_loop())
-
     uvicorn.run(app, host="0.0.0.0", port=10000)
