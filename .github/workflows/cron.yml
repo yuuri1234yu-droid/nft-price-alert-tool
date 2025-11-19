@@ -1,0 +1,15 @@
+name: Run Trend Checker
+
+on:
+  schedule:
+    - cron: "*/1 * * * *"   # 毎分実行
+  workflow_dispatch:        # 手動実行も可能
+
+jobs:
+  run-trend-checker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call Render cron endpoint
+        run: |
+          curl -X GET "https://あなたの-render-url.onrender.com/cron"
