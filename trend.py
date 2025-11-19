@@ -1,7 +1,7 @@
 # trend.py --- Solana NFT トレンド通知（高頻度通知版）
 import requests
 import time
-from telegram import Bot
+from telegram_utils import Bot
 import os
 
 # ======== Telegram 設定 ========
