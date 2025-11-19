@@ -10,8 +10,8 @@ latest_price_cache: dict[str, float] = {}
 def check_trend(
     collection_label: str,
     collection_symbol: str,
-    buy_threshold_percent: float = -3.0,   # ← BUY 判定を上げた
-    sell_threshold_percent: float = 3.0,   # ← SELL 判定を下げた
+    buy_threshold_percent: float = -0.1,   # ← BUY 判定を上げた
+    sell_threshold_percent: float = 0.1,   # ← SELL 判定を下げた
 ):
     """1コレクション分のトレンドチェック"""
 
