@@ -12,4 +12,4 @@ jobs:
     steps:
       - name: Call Render cron endpoint
         run: |
-          curl -X GET "https://あなたの-render-url.onrender.com/cron"
+          curl -X GET https://nft-trend-line-bot.onrender.com
