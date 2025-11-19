@@ -1,102 +1,86 @@
-# trend.py --- Solana NFT トレンド監視（Telegram通知対応）
+# trend.py --- トレンド判定 & Telegram通知（requestsのみ）
+
 import requests
-import os
-from telegram import Bot
+from os import getenv
 
-# Magic Eden API
-BASE_URL = "https://api-mainnet.magiceden.dev/v2/collections/{symbol}/stats"
+from solana import get_floor_price
 
-# Telegram Chat IDs（カンマ区切り）
-CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "").split(",")
+# 環境変数から取得（Render の Environment に設定済み）
+BOT_TOKEN = getenv("TELEGRAM_TOKEN", "")
+CHAT_IDS = getenv("TELEGRAM_CHAT_IDS", "")
 
-
-# -----------------------------------------------------
-# 通知送信用のラッパー関数
-# -----------------------------------------------------
-def notify(text):
-    """
-    全ての Telegram チャットに送信する
-    """
-    for cid in CHAT_IDS:
-        cid = cid.strip()
-        if cid:
-            try:
-                send_message(cid, text)
-                print(f"[Telegram] Notified → {cid}")
-            except Exception as e:
-                print(f"[Telegram ERROR] {e}")
-
-
-# -----------------------------------------------------
-# MagicEden API から floorPrice / listedCount を取得
-# -----------------------------------------------------
-def fetch_stats(symbol):
-    url = BASE_URL.format(symbol=symbol)
-    r = requests.get(url)
-
-    if r.status_code != 200:
-        print(f"[ERROR] APIエラー {symbol}: {r.status_code}")
-        return None
-
-    return r.json()
-
-
-# -----------------------------------------------------
-# トレンド判定ロジック（通知を出す）
-# -----------------------------------------------------
-# 過去の floor を保存（前回値と比較するため）
-last_floor = {}
-
-def check_trend(label, symbol):
-    """
-    変動率で売り時・買い時を通知する
-    """
-    global last_floor
-
-    data = fetch_stats(symbol)
-    if data is None:
+# 送信用URL
+def send_telegram_message(text: str):
+    if not BOT_TOKEN or not CHAT_IDS:
+        print("[Telegram] トークン or チャットID が未設定です")
         return
 
-    # floorPrice を SOL に変換（Magic Eden は 1e9）
-    if "floorPrice" not in data or data["floorPrice"] == 0:
-        print(f"[{label}] floorPrice が取得できなかったためスキップ")
-        return
+    for chat_id in CHAT_IDS.split(","):
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": chat_id.strip(), "text": text}
+        try:
+            requests.post(url, json=payload, timeout=10)
+        except Exception as e:
+            print(f"[Telegram] エラー: {e}")
 
-    floor = data["floorPrice"] / 1e9
-    listed = data.get("listedCount", 0)
 
-    print(f"[{label}] 現在 floor={floor} SOL, 出品数={listed}")
+# 価格キャッシュ
+latest_price_cache: dict[str, float] = {}
 
-    # 初回取得 → 記録だけして終了
-    if symbol not in last_floor:
-        last_floor[symbol] = floor
-        print(f"[{label}] 初回取得のため変動チェックなし")
-        return
 
-    before = last_floor[symbol]
-    change = ((floor - before) / before) * 100  # 変動率 %
+def check_trend(
+    collection_label: str,
+    collection_symbol: str,
+    buy_threshold_percent: float = -0.5,  # 1%下落でBUY
+    sell_threshold_percent: float = 0.5,  # 1%上昇でSELL
+):
+    """
+    シンプル変動通知モデル
+    """
 
-    print(f"[{label}] 変動率={change:.2f}%")
+    global latest_price_cache
 
-    # -----------------------------------------------------
-    # 🔥 通知ロジック（より変動性を強く → 通知が来やすい）
-    # -----------------------------------------------------
+    # ① 最新のフロア価格を取得
+    current_price = get_floor_price(collection_symbol)
+    if current_price is None:
+        return "HOLD"
 
-    # ▼ 強烈な買い時（急落）
-    if change <= -3:
-        notify(f"🔻【買い時チャンス】{label}\nfloor: {floor:.3f} SOL\n変動: {change:.2f}%\n出品数: {listed}")
+    # ② 前回価格
+    prev_price = latest_price_cache.get(collection_symbol)
 
-    # ▼ 買い時（軽い下落）
-    elif change <= -1.0:
-        notify(f"📉【買い時の兆し】{label}\nfloor: {floor:.3f} SOL\n変動: {change:.2f}%\n出品数: {listed}")
+    # ③ キャッシュ更新（次回比較用）
+    latest_price_cache[collection_symbol] = current_price
 
-    # ▼ 強烈な売り時（急騰）
-    elif change >= 3:
-        notify(f"🚀【売り時チャンス】{label}\nfloor: {floor:.3f} SOL\n変動: +{change:.2f}%\n出品数: {listed}")
+    # 初回は比較不可
+    if prev_price is None:
+        print(f"[{collection_label}] 初回価格 {current_price:.3f} SOL")
+        return "HOLD"
 
-    # ▼ 売り時（軽い上昇）
-    elif change >= 1.0:
-        notify(f"📈【売り時の兆し】{label}\nfloor: {floor:.3f} SOL\n変動: +{change:.2f}%\n出品数: {listed}")
+    # ④ 変動率を計算
+    change_percent = (current_price - prev_price) / prev_price * 100
+
+    # 判定
+    signal = "HOLD"
+    if change_percent <= buy_threshold_percent:
+        signal = "BUY"
+    elif change_percent >= sell_threshold_percent:
+        signal = "SELL"
+
+    # ⑤ 通知
+    if signal != "HOLD":
+        msg = (
+            f"【{signal}】 {collection_label}\n"
+            f"前回: {prev_price:.3f} SOL\n"
+            f"現在: {current_price:.3f} SOL\n"
+            f"変動: {change_percent:+.2f}%\n"
+        )
+        send_telegram_message(msg)
+        print(f"[{collection_label}] {signal} 通知送信済み")
+    else:
+        print(f"[{collection_label}] {change_percent:+.2f}% → HOLD")
+
+    return signal
+
 
     # 前回値を更新
     last_floor[symbol] = floor
