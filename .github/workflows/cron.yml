@@ -2,14 +2,12 @@ name: Run Trend Checker
 
 on:
   schedule:
-    - cron: "*/1 * * * *"   # 毎分実行
-  workflow_dispatch:        # 手動実行も可能
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 jobs:
   run-trend-checker:
     runs-on: ubuntu-latest
-
     steps:
       - name: Call Render cron endpoint
-        run: |
-          curl -X GET https://nft-trend-line-bot.onrender.com
+        run: curl -X GET https://nft-trend-line-bot.onrender.com/cron
