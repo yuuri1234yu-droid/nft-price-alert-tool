@@ -10,12 +10,12 @@ def send_telegram_message(text: str):
         return
 
     if not TELEGRAM_CHAT_IDS:
-        print("[Telegram] 通知先 TELEGRAM_CHAT_IDS が設定されていません。")
+        print("[Telegram] TELEGRAM_CHAT_IDS が空です。")
         return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
-    # 複数の chat_id 全員に送信
+    # 全員に送信
     for cid in TELEGRAM_CHAT_IDS:
         payload = {
             "chat_id": cid,
